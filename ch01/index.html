@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Подготовка: секвенция, дорожки, три плана</title>
+<link rel="stylesheet" href="../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../lib/engine.js"></script>
+<script src="audio/ru/timings.js"></script>
+<script>
+'use strict';
+const CHAPTER = { number: 1, title: 'Подготовка: секвенция, дорожки, три плана', minutes: 7, language: 'ru' };
+
+/* ---------- chapter colours ---------- */
+const PLAN = { WIDE: COL.whole, CLOSE: COL.rat, PUNCH: COL.nat };
+const EYE = COL.good;
+
+/* ---------- chapter drawing helpers ---------- */
+const say = (p, str, x, y, t0, { size = 30, fill = COL.chalk, anchor = 'start', weight = 500 } = {}) => {
+  const e = T(p, str, { x, y, size, fill, anchor, weight, o: 0 }); show(e, t0); return e;
+};
+let clipN = 0;
+// A 9:16 phone. Returns { g, seq, k, x0, y0, w, h }: draw into `seq` in sequence pixels (1080×1920).
+function c1Phone(p, cx, top, ph, { o = 1 } = {}) {
+  const k = ph / 1920, w = 1080 * k, x0 = cx - w / 2, y0 = top;
+  const g = G(p, { o });
+  const id = 'c1clip' + (++clipN);
+  const cp = mk('clipPath', { id }, g);
+  mk('rect', { x: x0, y: y0, width: w, height: ph, rx: 18 }, cp);
+  const screen = G(g); screen.setAttribute('clip-path', `url(#${id})`);
+  mk('rect', { x: x0, y: y0, width: w, height: ph, fill: '#0e1513' }, screen);
+  const seq = G(screen, { x: x0, y: y0, s: k });
+  mk('rect', { x: x0 - 9, y: y0 - 9, width: w + 18, height: ph + 18, rx: 26, fill: 'none', stroke: COL.dim, 'stroke-width': 3 }, g);
+  return { g, seq, k, x0, y0, w, h: ph };
+}
+// Nick on his set, drawn in source pixels (1920×1080) relative to (ax, ay): the anchor point.
+function c1Nick(parent, ax, ay, o = {}) {
+  const g = G(parent, o);
+  const d = G(g, { x: -ax, y: -ay });
+  mk('rect', { x: 0, y: 0, width: 1920, height: 1080, fill: '#d8d3c6' }, d);
+  for (const [x, y] of [[120, 90], [1420, 90]]) {        // the two wall logos
+    mk('rect', { x, y, width: 380, height: 300, rx: 40, fill: '#3d5ea8' }, d);
+    T(d, 'NICK', { x: x + 190, y: y + 130, size: 110, weight: 800, fill: '#f3c95c', anchor: 'middle' });
+    T(d, 'TUTOR', { x: x + 190, y: y + 250, size: 90, weight: 800, fill: '#f3c95c', anchor: 'middle' });
+  }
+  mk('rect', { x: 0, y: 820, width: 1920, height: 260, fill: '#f1efe9' }, d);                       // desk
+  mk('path', { d: 'M640 1080L700 640Q963 520 1226 640L1286 1080Z', fill: '#1f2a4d' }, d);           // shirt
+  mk('rect', { x: 918, y: 470, width: 90, height: 90, fill: '#d9a988' }, d);                         // neck
+  mk('ellipse', { cx: 963, cy: 308, rx: 122, ry: 196, fill: '#e2b393' }, d);                         // head: top 112, chin 504
+  mk('path', { d: 'M843 300Q840 120 963 108Q1090 112 1084 300Q1060 190 963 190Q870 190 843 300Z', fill: '#2a211c' }, d);
+  for (const x of [915, 1011]) mk('ellipse', { cx: x, cy: 307, rx: 17, ry: 9, fill: '#1b1b1b' }, d);   // eyes y 307
+  mk('path', { d: 'M923 430Q963 446 1003 430', fill: 'none', stroke: '#8c3b33', 'stroke-width': 9, 'stroke-linecap': 'round' }, d);
+  return g;
+}
+// Where Nick's group sits for a given Scale when his anchor is the frame centre and the eyes start on 690.
+const c1Pos = s => ({ x: 540 - 3 * s / 100, y: 690 + 233 * s / 100 });   // centre anchor that puts the eyes on 690
+function c1EyeLine(phone, t0, label = true) {
+  const { seq } = phone;
+  const l = path(seq, 'M0 690H1080', { stroke: EYE, 'stroke-width': 8, 'stroke-dasharray': '30 22' }, { o: 0 });
+  show(l, t0);
+  if (label) say(phone.g, 'глаза · 690', phone.x0 + phone.w + 20, phone.y0 + 690 * phone.k + 9, t0, { size: 24, fill: EYE, weight: 600 });
+  return l;
+}
+// A zone band inside the phone, in sequence pixels.
+function c1Zone(phone, y1, y2, colr, str, t0) {
+  const g = G(phone.seq, { o: 0 });
+  mk('rect', { x: 30, y: y1, width: 1020, height: y2 - y1, rx: 24, fill: colr, 'fill-opacity': .28, stroke: colr, 'stroke-width': 6 }, g);
+  T(g, str, { x: 540, y: (y1 + y2) / 2 + 22, size: 64, weight: 700, fill: '#ffffff', anchor: 'middle' });
+  show(g, t0);
+  return g;
+}
+
+/* ---------- tracks ---------- */
+const TRACKS = [   // top to bottom; mark = narration word that adds the row
+  ['V7', 'гайды (выкл. при экспорте)', COL.faint, 'v7'],
+  ['C1', 'субтитры E1', COL.chalk, 'c1'],
+  ['V6', 'хук и плашки E2, E3', COL.int, 'v6'],
+  ['V5', 'карточки E4–E8', COL.whole, 'v5'],
+  ['V4', 'иконки IC, большое слово E9', COL.nat, 'v4'],
+  ['V3', 'сток (B-roll)', COL.irr, 'v3'],
+  ['V2', 'Ник (A-roll)', COL.rat, 'v2'],
+  ['V1', 'фон: продлённая стена', COL.real, 'v1'],
+  ['A1–A3', 'голос · SFX · музыка', COL.dim, 'a'],
+];
+const TR = { x: 110, y: 150, rowH: 66, w: 800 };
+function trackRows(p, m, instant) {
+  const rows = [];
+  TRACKS.forEach(([name, what, colr, mark], i) => {
+    const y = TR.y + i * TR.rowH + (name.startsWith('A') ? 22 : 0);
+    const g = G(p);
+    const tag = G(g, { o: 0 });
+    mk('rect', { x: TR.x, y, width: 110, height: TR.rowH - 12, rx: 10, fill: '#2a3b36', stroke: COL.faint, 'stroke-width': 2 }, tag);
+    T(tag, name, { x: TR.x + 55, y: y + 38, size: 26, weight: 700, anchor: 'middle' });
+    show(tag, instant ? 0 : .3 + i * .06, .4);
+    const body = G(g, { o: 0, x: -20 });
+    mk('rect', { x: TR.x + 128, y: y + 6, width: 260, height: TR.rowH - 24, rx: 8, fill: colr, 'fill-opacity': .85 }, body);
+    T(body, what, { x: TR.x + 410, y: y + 38, size: 26, fill: COL.chalk });
+    tw(body, { o: 1, x: 0 }, instant ? 0 : m(mark), .5, out);
+    rows.push({ g, box: [TR.x - 8, y - 4, TR.w, TR.rowH - 4], name });
+  });
+  return rows;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+  ['intro', 'Подготовка', (m, D) => {
+    const g = G(scene, { o: 0, y: 24 });
+    T(g, 'Урок 4 · Глава 1', { x: 800, y: 330, size: 28, fill: COL.dim, anchor: 'middle' });
+    T(g, 'Подготовка проекта', { x: 800, y: 430, size: 84, weight: 600, anchor: 'middle' });
+    tw(g, { o: 1, y: 0 }, .2, 1.1, out);
+    const r = say(scene, 'секвенция · дорожки · три плана камеры · пресеты', 800, 520, m('sub'), { size: 34, fill: COL.dim, anchor: 'middle' });
+    tw(g, { o: 0, y: -24 }, D - .9, .8); hide(r, D - .9, .8);
+  }],
+
+  ['seq', 'Секвенция 1080×1920', (m) => {
+    const p = panel(0);
+    const ph = c1Phone(p, 1180, 90, 720, { o: 0 });
+    show(ph.g, .2);
+    const src = G(p, { x: 120, y: 240, o: 0 });                        // the 16:9 source, 640×360
+    mk('rect', { width: 640, height: 360, rx: 10, fill: '#0e1513', stroke: COL.dim, 'stroke-width': 3 }, src);
+    const inner = G(src, { s: 640 / 1920 }); c1Nick(inner, 0, 0);
+    T(src, '1920 × 1080', { x: 320, y: 410, size: 30, fill: COL.whole, weight: 600, anchor: 'middle' });
+    show(src, .3);
+    pulse(src, m('wide'), 1.05);
+    say(p, '1080 × 1920', 1180, 860, m('tall'), { size: 30, fill: COL.rat, weight: 600, anchor: 'middle' });
+    // the same frame dropped into the phone at 100 %: it is far too short, so we zoom
+    const n = c1Nick(ph.seq, 960, 540, { x: 540, y: 960, s: 1, o: 0 });
+    show(n, m('tall') + .6, .6);
+    const zoom = c1Pos(225);
+    tw(n, { s: 2.25, x: zoom.x, y: zoom.y }, m('tall') + 2.6, 1.4);
+    const note = say(p, 'не помещается → приближаем', 440, 700, m('tall') + 1.6, { size: 30, fill: COL.task, anchor: 'middle', weight: 600 });
+    hide(note, m('fps') - .2);
+    const box = G(p, { o: 0 });
+    mk('rect', { x: 120, y: 660, width: 640, height: 150, rx: 16, fill: '#25352f', stroke: COL.faint, 'stroke-width': 2 }, box);
+    T(box, 'Sequence → Sequence Settings', { x: 150, y: 715, size: 28, weight: 700 });
+    T(box, '1080 × 1920 · 30 fps · Square Pixels (1.0)', { x: 150, y: 770, size: 28, fill: COL.int });
+    show(box, m('fps'));
+  }],
+
+  ['tracks', 'Дорожки V1–V7', (m) => {
+    const p = panel(0);
+    say(p, 'Дорожки таймлайна', TR.x, 110, .2, { size: 32, fill: COL.dim, weight: 600 });
+    S.rows = trackRows(p, m, false);
+  }],
+
+  ['q1', 'Проверка: дорожка', () => {
+    const p = panel(0);
+    S.rows = trackRows(p, null, true);
+  }, { ask: done => quiz({ x: 1000, y: 170, w: 560, cls: 'side' }, [{
+    id: 'c-track', prompt: ['Карточка College A (E5) — на какую дорожку? Кликни строку.'],
+    build: pickEls(S.rows.map(r => ({ el: r.g, box: r.box, label: r.name })), 3,
+      'V5 — дорожка карточек E4–E8. Она выше Ника и стока, поэтому карточка лежит поверх них.',
+      i => i === 2 ? 'V6 — для хука и плашек. Карточки живут на V5.' : i === 6 ? 'V2 — это сам Ник; карточка спряталась бы под стоком.' : 'Эта дорожка для другого. Карточки E4–E8 — на V5.'),
+  }], done) }],
+
+  ['plans', 'Три плана: WIDE · CLOSE · PUNCH', (m) => {
+    const p = panel(0);
+    const specs = [['WIDE', 125, '62,5', 300, 'wide'], ['CLOSE', 225, '112,5', 800, 'close'], ['PUNCH', 270, '135', 1300, 'punch']];
+    S.phones = {};
+    specs.forEach(([name, sc, k4, cx, mark]) => {
+      const t0 = mark === 'wide' ? .2 : m(mark);
+      const ph = c1Phone(p, cx, 70, 600, { o: 0 });
+      const pos = c1Pos(sc);
+      c1Nick(ph.seq, 960, 540, { x: pos.x, y: pos.y, s: sc / 100 });
+      show(ph.g, t0);
+      c1EyeLine(ph, t0 + .3, false);
+      say(p, name, cx, 720, t0, { size: 36, weight: 700, fill: PLAN[name], anchor: 'middle' });
+      say(p, `Scale ${sc}%`, cx, 762, t0 + .2, { size: 28, anchor: 'middle' });
+      say(p, `4K: ${k4}%`, cx, 800, m('k4') + (cx - 300) / 1000, { size: 28, fill: COL.int, anchor: 'middle', weight: 600 });
+      S.phones[name] = ph;
+    });
+    c1Zone(S.phones.WIDE, 160, 440, PLAN.WIDE, 'карточки', m('wide') + 1.6);
+    c1Zone(S.phones.WIDE, 1190, 1310, COL.chalk, 'субтитры', m('wide') + 2.2);
+    c1Zone(S.phones.CLOSE, 1180, 1420, PLAN.CLOSE, 'карточки вниз', m('close') + 2.4);
+    c1Zone(S.phones.PUNCH, 1300, 1500, PLAN.PUNCH, 'ОДНО СЛОВО', m('punch') + 1.2);
+  }],
+
+  ['q2', 'Проверка: 4K', () => { panel(0); }, { ask: done => quiz({ x: 300, y: 260, w: 1000, cls: 'side' }, [{
+    id: 'c-4k', prompt: ['Исходник в 4K. Для CLOSE в 1080p нужно 225%. Какой Scale ставим в 4K?'],
+    build: blanks([{ parts: ['Scale = ', { box: '112,5' }, ' %'], why: '4K вдвое больше 1080p по каждой стороне, поэтому Scale вдвое меньше: 225 : 2 = 112,5.', hint: 'Кадр 4K в два раза шире. Значит, приближать нужно в два раза меньше.' }]),
+  }], done) }],
+
+  ['anchor', 'Anchor Point на глазах', (m) => {
+    const p = panel(0);
+    const L = c1Phone(p, 470, 60, 640, { o: 0 }), R = c1Phone(p, 1130, 60, 640, { o: 0 });
+    show(L.g, .2); show(R.g, .2);
+    say(p, 'якорь в центре', 470, 760, .3, { size: 30, anchor: 'middle', weight: 600, fill: COL.bad });
+    say(p, 'якорь на глазах', 1130, 760, m('fix'), { size: 30, anchor: 'middle', weight: 600, fill: EYE });
+    // left: centre anchor, Position fixed at the WIDE value -> eyes drift up as Scale grows
+    const w = c1Pos(125);
+    const nl = c1Nick(L.seq, 960, 540, { x: w.x, y: w.y, s: 1.25 });
+    tw(nl, { s: 2.4 }, m('grow'), 2.2);
+    const eyeDot = mk('circle', { r: 26, fill: 'none', stroke: COL.bad, 'stroke-width': 8 }, L.seq);
+    put(eyeDot, { x: w.x + 3 * 1.25, y: w.y - 233 * 1.25, o: 0 });
+    prog(q => { const s = 1.25 + (2.4 - 1.25) * io(q); put(eyeDot, { x: w.x + 3 * s, y: w.y - 233 * s, o: 1 }); }, m('grow'), 2.2, lin);
+    // right: anchor on the eyes, Position 540,690 -> the eyes never leave the line
+    const nr = c1Nick(R.seq, 963, 307, { x: 540, y: 690, s: 1.25, o: 0 });
+    show(nr, m('fix') - .3, .4);
+    tw(nr, { s: 2.4 }, m('fix') + .6, 2.2);
+    tw(nr, { s: 1.6 }, m('fix') + 3.2, 1.2);
+    const eyeR = mk('circle', { r: 26, fill: 'none', stroke: EYE, 'stroke-width': 8 }, R.seq);
+    put(eyeR, { x: 540, y: 690, o: 0 }); show(eyeR, m('fix') + .4);
+    c1EyeLine(L, .4, false); c1EyeLine(R, .4, false);
+    say(p, 'линия глаз 690', 800, 60 + 690 * L.k + 9, .5, { size: 24, fill: EYE, weight: 600, anchor: 'middle' });
+    const box = G(p, { o: 0 });
+    mk('rect', { x: 300, y: 790, width: 1000, height: 90, rx: 16, fill: '#25352f', stroke: COL.faint, 'stroke-width': 2 }, box);
+    T(box, 'Anchor Point 963, 307  (4K: 1926, 614)   ·   Position 540, 690', { x: 800, y: 847, size: 30, weight: 600, anchor: 'middle', fill: COL.int });
+    show(box, m('nums'));
+  }],
+
+  ['q3', 'Проверка: наклон', () => { panel(0); }, { ask: done => quiz({ x: 300, y: 220, w: 1000, cls: 'side' }, [{
+    id: 'c-lean', prompt: ['В одном куске Ник наклонился, и глаза ушли с линии 690. Что поправить?'],
+    build: choice([['Position Y этого клипа'], ['Anchor Point у всех клипов'], ['Scale всех клипов']], 0,
+      'Якорь уже на переносице во всех клипах. Наклон — особенность одного куска, поэтому двигаем только его Position Y.',
+      [null, 'Якорь настраивается один раз и копируется. Если менять его у всех, сломаются остальные куски.', 'Scale задаёт план (WIDE, CLOSE, PUNCH), а не высоту глаз.']),
+  }], done) }],
+
+  ['presets', 'Пресеты POP_in · POP_out', (m) => {
+    const p = panel(0);
+    const ax = { x: 160, y: 640, w: 720, h: 400 };           // graph: frames 0..6 → x, scale 70..110 → y
+    const fx_ = f => ax.x + f / 6 * ax.w, fy = v => ax.y - (v - 70) / 40 * ax.h;
+    const gr = G(p, { o: 0 });
+    path(gr, `M${ax.x} ${ax.y}H${ax.x + ax.w}M${ax.x} ${ax.y}V${ax.y - ax.h}`, { stroke: COL.dim, 'stroke-width': 3 });
+    for (let f = 0; f <= 6; f++) T(gr, String(f), { x: fx_(f), y: ax.y + 36, size: 24, fill: COL.dim, anchor: 'middle' });
+    T(gr, 'кадры', { x: ax.x + ax.w, y: ax.y + 70, size: 24, fill: COL.dim, anchor: 'end' });
+    for (const v of [80, 100]) {
+      path(gr, `M${ax.x} ${fy(v)}H${ax.x + ax.w}`, { stroke: COL.faint, 'stroke-width': 1.5, 'stroke-dasharray': '6 8' });
+      T(gr, v + '%', { x: ax.x - 14, y: fy(v) + 8, size: 22, fill: COL.dim, anchor: 'end' });
+    }
+    T(gr, 'Scale', { x: ax.x, y: ax.y - ax.h - 16, size: 26, fill: COL.int, weight: 600 });
+    show(gr, .2);
+    const curve = path(p, `M${fx_(0)} ${fy(80)}L${fx_(3)} ${fy(105)}L${fx_(6)} ${fy(100)}`, { stroke: COL.int, 'stroke-width': 6 }, { d: 0 });
+    draw(curve, m('pin'), 1.6);
+    [[0, 80], [3, 105], [6, 100]].forEach(([f, v], i) => {
+      const d = mk('circle', { r: 11, fill: COL.int }, p); put(d, { x: fx_(f), y: fy(v), s: 0, o: 0 }); pop(d, m('pin') + i * .55);
+      say(p, `${v}`, fx_(f), fy(v) - 22, m('pin') + i * .55 + .2, { size: 24, anchor: 'middle', fill: COL.int, weight: 600 });
+    });
+    const op = path(p, `M${fx_(0)} ${ax.y - 6}L${fx_(2)} ${ax.y - 60}H${fx_(6)}`, { stroke: COL.whole, 'stroke-width': 5 }, { d: 0 });
+    draw(op, m('pin') + 2.4, 1);
+    say(p, 'Opacity 0 → 100 за 2 кадра', fx_(2) + 20, ax.y - 72, m('pin') + 2.6, { size: 24, fill: COL.whole });
+    // the card that the keys animate, replayed in slow motion
+    const card = G(p, { x: 1220, y: 330, s: .8, o: 0 });
+    mk('rect', { x: -170, y: -110, width: 340, height: 220, rx: 26, fill: '#ffffff' }, card);
+    T(card, 'COLLEGE A', { y: -40, size: 26, weight: 700, fill: '#5a606e', anchor: 'middle' });
+    T(card, '#95', { y: 50, size: 84, weight: 800, fill: '#0f1b3d', anchor: 'middle' });
+    const t1 = m('pin') + .1;
+    tw(card, { o: 1 }, t1, .55, lin); tw(card, { s: 1.05 }, t1, .8, out); tw(card, { s: 1 }, t1 + .8, .8, io);
+    say(p, 'POP_in', 1220, 520, t1, { size: 32, anchor: 'middle', weight: 700, fill: COL.int });
+    tw(card, { s: .85, o: 0 }, m('pout') + .4, 1.1, io);
+    say(p, 'POP_out: 100 → 85%, 4 кадра', 1220, 570, m('pout'), { size: 26, anchor: 'middle', fill: COL.dim });
+    const sv = G(p, { o: 0 });
+    mk('rect', { x: 960, y: 690, width: 560, height: 130, rx: 16, fill: '#25352f', stroke: COL.faint, 'stroke-width': 2 }, sv);
+    T(sv, 'Save Preset…', { x: 990, y: 740, size: 28, weight: 700 });
+    T(sv, 'POP_in → Anchor to In Point', { x: 990, y: 780, size: 24, fill: COL.int });
+    T(sv, 'POP_out → Anchor to Out Point', { x: 990, y: 810, size: 24, fill: COL.int });
+    show(sv, m('save'));
+  }],
+
+  ['passes', 'Порядок проходов', (m) => {
+    const p = panel(0);
+    say(p, 'Проходы по всему ролику', 220, 150, .2, { size: 34, weight: 600, fill: COL.dim });
+    [['Камера', 'Scale и Position всех клипов Ника', 'p1'], ['Сток', 'V3 закрывает склейки', 'p2'], ['Субтитры', 'SRT → Track Style → жёлтые слова', 'p3'],
+     ['Графика', 'E2–E9 и иконки через POP_in / POP_out', 'p4'], ['Звук', 'SFX на A2, музыка на A3 с Ducking', 'p5'], ['Экспорт', 'и проверка на телефоне', 'p6']]
+      .forEach(([a, b, mark], i) => {
+        const g = G(p, { x: -16, o: 0 });
+        const y = 240 + i * 100;
+        mk('circle', { cx: 250, cy: y - 10, r: 28, fill: COL.task }, g);
+        T(g, String(i + 1), { x: 250, y: y + 1, size: 30, fill: COL.board, weight: 700, anchor: 'middle' });
+        T(g, a, { x: 310, y: y, size: 36, weight: 700 });
+        T(g, b, { x: 560, y: y, size: 28, fill: COL.dim });
+        tw(g, { o: 1, x: 0 }, m(mark), .6);
+      });
+  }],
+
+  ['wrap', 'Итоги', (m) => {
+    const p = panel(0);
+    [['Секвенция 1080 × 1920, 30 fps, квадратные пиксели.', 'w1'], ['Каждая дорожка — для своего: V2 Ник, V5 карточки, C1 субтитры.', 'w2'],
+     ['WIDE 125% · CLOSE 225% · PUNCH 270% (4K — вдвое меньше).', 'w3'], ['Anchor Point на глазах держит их на линии 690.', 'w4']].forEach(([str, mark], i) => {
+      const g = G(p, { x: -16, y: 260 + i * 130, o: 0 });
+      mk('circle', { cx: 200, cy: -12, r: 26, fill: COL.task }, g);
+      T(g, String(i + 1), { x: 200, y: -1, size: 30, fill: COL.board, weight: 700, anchor: 'middle' });
+      T(g, str, { x: 260, size: 34, weight: 600 });
+      tw(g, { o: 1, x: 0 }, m(mark), .6);
+    });
+  }],
+
+  ['final1', 'Практика 1', () => { panel(0); }, { ask: done => quiz(SCREEN, [{
+    id: 'p-plans', prompt: ['Какой план камеры для каждого момента?'],
+    build: grid([
+      { parts: ['Факт и карточка College A на стене'], ans: ['w'], why: 'Факты и карточки — WIDE: над головой есть стена для графики.' },
+      { parts: ['Хук в первые секунды: «You can negotiate…»'], ans: ['c'], why: 'Хук и эмоция — CLOSE.' },
+      { parts: ['Одно слово-удар: «CRAZY»'], ans: ['p'], why: 'Удар на одно слово — PUNCH, кроме слова на экране ничего.' },
+      { parts: ['Список из трёх правил'], ans: ['w'], why: 'Списки — WIDE: им нужно место.' },
+      { parts: ['Личный совет зрителю'], ans: ['c'], why: 'Совет и цитата — CLOSE, камера ближе.' },
+    ], [['w', 'WIDE', PLAN.WIDE], ['c', 'CLOSE', PLAN.CLOSE], ['p', 'PUNCH', PLAN.PUNCH]], { multi: false, text: true }),
+  }], done, 'Практика   1 из 2') }],
+
+  ['final2', 'Практика 2', () => { panel(0); }, { ask: done => quiz(SCREEN, [{
+    id: 'p-4k', prompt: ['Исходник в 4K. Заполни Scale и Position.'],
+    build: blanks([
+      { parts: ['WIDE:  Scale = ', { box: '62,5' }, ' %'], why: '125 : 2 = 62,5.', hint: 'В 4K все Scale вдвое меньше, чем в 1080p.' },
+      { parts: ['PUNCH:  Scale = ', { box: '135' }, ' %'], why: '270 : 2 = 135.', hint: 'PUNCH в 1080p — 270%.' },
+      { parts: ['Position Y глаз = ', { box: '690' }], why: 'Линия глаз одна для всех планов и не зависит от исходника: 690.', hint: 'Это номер линии глаз.' },
+    ]),
+  }], done, 'Практика   2 из 2') }],
+
+  ['finish', 'Готово', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>
